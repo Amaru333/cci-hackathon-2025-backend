@@ -30,9 +30,12 @@ class IngredientResponse(BaseModel):
     unit: str
     user: str
 
-@router.get("/")
-def get_recipes():
-    item_list = [ { "name": "rice", "quantity": 2, "unit": "kgs", "user": "testuser", "id": "68f3fda76adc337c94343579" }, { "name": "beans", "quantity": 2, "unit": "lbs", "user": "testuser", "id": "68f3fdd49bedbb14f862f529" } ]
+@router.get("/{user}")
+def get_recipes(user: str):
+    item_list = list(ingredients_collection.find({"user": user}))
+    for item in item_list:
+        item["id"] = str(item["_id"])
+        del item["_id"]
     item_names = ", ".join([item["name"] for item in item_list])
     user_preference = {"dietary_preference": "vegetarian",
   "spice_level": "medium",
