@@ -1,10 +1,11 @@
+from dotenv import load_dotenv
+load_dotenv()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from routes.receipt import router as receipt_router
 from routes.recipe import router as recipe_router
-from dotenv import load_dotenv
-load_dotenv()
+from routes.user import router as user_router
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -25,6 +26,7 @@ app.add_middleware(
 # Include routers
 app.include_router(receipt_router, prefix="/receipts", tags=["receipts"])
 app.include_router(recipe_router, prefix="/recipes", tags=["recipes"])
+app.include_router(user_router, prefix="/users", tags=["users"])
 
 # Health check routes
 @app.get("/")

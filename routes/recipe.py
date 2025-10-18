@@ -1,14 +1,80 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from pymongo import MongoClient
+import os
+from kronoslabs import KronosLabs
 
 router = APIRouter()
 
-class RecipeRequest(BaseModel):
-    data: str
+kronosClient = KronosLabs(api_key=os.getenv("KRONOSLABS_API_KEY"))
+
+# MongoDB connection
+mongodb_uri = os.getenv("MONGODB_URI")
+if not mongodb_uri:
+    raise RuntimeError("MONGODB_URI not configured")
+
+client = MongoClient(mongodb_uri, tls=True, tlsAllowInvalidCertificates=True)
+db = client["cci_hackathon"]
+ingredients_collection = db["ingredients"]
+
+class Ingredient(BaseModel):
+    name: str
+    quantity: float
+    unit: str
+    user: str
+
+class IngredientResponse(BaseModel):
+    id: str
+    name: str
+    quantity: float
+    unit: str
+    user: str
 
 @router.get("/")
 def get_recipes():
+    item_list = [ { "name": "rice", "quantity": 2, "unit": "kgs", "user": "testuser", "id": "68f3fda76adc337c94343579" }, { "name": "beans", "quantity": 2, "unit": "lbs", "user": "testuser", "id": "68f3fdd49bedbb14f862f529" } ]
+    item_names = ", ".join([item["name"] for item in item_list])
+    response = kronosClient.chat.completions.create(
+    prompt="You are an AI recipe assistant. Given the following ingredients: {}. Suggest five recipes that can be made using these ingredients. Provide the recipe name and a brief description.".format(item_names),
+    model="hermes",
+    temperature=0.7,
+    is_stream=False
+)
     return {
-        "message": "Recipes retrieved successfully",
-        "recipes": []
+        "ingredients": item_list,
+        "recipes": response.choices[0].message.content
     }
+
+@router.post("/ingredients/")
+def add_ingredient(ingredient: Ingredient):
+    try:
+        # Insert ingredient into MongoDB
+        result = ingredients_collection.insert_one(ingredient.dict())
+        
+        # Return the created ingredient with ID
+        return {
+            "id": str(result.inserted_id),
+            "message": "Ingredient added successfully",
+            **ingredient.dict()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error adding ingredient: {str(e)}")
+
+@router.get("/ingredients/{user}")
+def get_ingredients_by_user(user: str):
+    try:
+        # Find all ingredients for the given user
+        ingredients = list(ingredients_collection.find({"user": user}))
+        
+        # Convert ObjectId to string for JSON serialization
+        for ingredient in ingredients:
+            ingredient["id"] = str(ingredient["_id"])
+            del ingredient["_id"]
+
+        return {
+            "user": user,
+            "ingredients": ingredients,
+            "count": len(ingredients)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving ingredients: {str(e)}")
