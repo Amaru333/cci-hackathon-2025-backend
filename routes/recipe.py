@@ -2,8 +2,11 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from pymongo import MongoClient
 import os
+from kronoslabs import KronosLabs
 
 router = APIRouter()
+
+kronosClient = KronosLabs(api_key=os.getenv("KRONOSLABS_API_KEY"))
 
 # MongoDB connection
 mongodb_uri = os.getenv("MONGODB_URI")
@@ -29,9 +32,17 @@ class IngredientResponse(BaseModel):
 
 @router.get("/")
 def get_recipes():
+    item_list = [ { "name": "rice", "quantity": 2, "unit": "kgs", "user": "testuser", "id": "68f3fda76adc337c94343579" }, { "name": "beans", "quantity": 2, "unit": "lbs", "user": "testuser", "id": "68f3fdd49bedbb14f862f529" } ]
+    item_names = ", ".join([item["name"] for item in item_list])
+    response = kronosClient.chat.completions.create(
+    prompt="You are an AI recipe assistant. Given the following ingredients: {}. Suggest five recipes that can be made using these ingredients. Provide the recipe name and a brief description.".format(item_names),
+    model="hermes",
+    temperature=0.7,
+    is_stream=False
+)
     return {
-        "message": "Recipes retrieved successfully",
-        "recipes": []
+        "ingredients": item_list,
+        "recipes": response.choices[0].message.content
     }
 
 @router.post("/ingredients/")
@@ -59,7 +70,7 @@ def get_ingredients_by_user(user: str):
         for ingredient in ingredients:
             ingredient["id"] = str(ingredient["_id"])
             del ingredient["_id"]
-            
+
         return {
             "user": user,
             "ingredients": ingredients,
