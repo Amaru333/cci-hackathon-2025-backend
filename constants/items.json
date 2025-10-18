@@ -123,5 +123,7 @@
   { "name": "Cake Mix", "expiry": 180 },
   { "name": "Brown Sugar", "expiry": 365 },
   { "name": "Powdered Sugar", "expiry": 365 },
-  { "name": "Blueberry", "expiry": 7 }
+  { "name": "Capcicum", "expiry": 8},
+  { "name": "peas", "expiry": 100},
+  { "name": ""}
 ]
