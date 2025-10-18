@@ -34,8 +34,15 @@ class IngredientResponse(BaseModel):
 def get_recipes():
     item_list = [ { "name": "rice", "quantity": 2, "unit": "kgs", "user": "testuser", "id": "68f3fda76adc337c94343579" }, { "name": "beans", "quantity": 2, "unit": "lbs", "user": "testuser", "id": "68f3fdd49bedbb14f862f529" } ]
     item_names = ", ".join([item["name"] for item in item_list])
+    user_preference = {"dietary_preference": "vegetarian",
+  "spice_level": "medium",
+  "food_allergy": ["peanuts", "shellfish"],
+  "daily_calorie_target": { "$numberDouble": "2000.0" }
+}
     response = kronosClient.chat.completions.create(
-    prompt="You are an AI recipe assistant. Given the following ingredients: {}. Suggest five recipes that can be made using these ingredients. Provide the recipe name and a brief description.".format(item_names),
+    prompt="You are an AI recipe assistant. Based on the following ingredients: " + item_names +
+    ", and user preferences: " + str(user_preference) +
+    ", suggest a list of recipes that can be made. Provide detailed recipe instructions including ingredients, quantities, and steps.",
     model="hermes",
     temperature=0.7,
     is_stream=False
