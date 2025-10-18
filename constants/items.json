@@ -122,5 +122,6 @@
   { "name": "Baking Soda", "expiry": 365 },
   { "name": "Cake Mix", "expiry": 180 },
   { "name": "Brown Sugar", "expiry": 365 },
-  { "name": "Powdered Sugar", "expiry": 365 }
+  { "name": "Powdered Sugar", "expiry": 365 },
+  { "name": "Blueberry", "expiry": 7 }
 ]

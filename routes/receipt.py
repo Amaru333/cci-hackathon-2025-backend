@@ -5,6 +5,8 @@ import base64
 import requests
 import json
 import os
+from utils.standardize import smart_standardize
+
 
 router = APIRouter()
 
@@ -94,9 +96,12 @@ async def process_receipt(file: UploadFile = File(...)):
         if "error" in result:
             raise HTTPException(status_code=400, detail=result["error"])
 
+        result["items"] = smart_standardize(result["items"])
+
         return ReceiptResponse(**result)
 
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
