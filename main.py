@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from routes.receipt import router as receipt_router
 from routes.recipe import router as recipe_router
+from dotenv import load_dotenv
+load_dotenv()
 
 # Initialize FastAPI app
 app = FastAPI(
