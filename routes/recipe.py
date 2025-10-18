@@ -31,26 +31,68 @@ class IngredientResponse(BaseModel):
     user: str
 
 @router.get("/")
+@router.get("/")
 def get_recipes():
-    item_list = [ { "name": "rice", "quantity": 2, "unit": "kgs", "user": "testuser", "id": "68f3fda76adc337c94343579" }, { "name": "beans", "quantity": 2, "unit": "lbs", "user": "testuser", "id": "68f3fdd49bedbb14f862f529" } ]
+    item_list = [
+        {"name": "rice", "quantity": 2, "unit": "kgs", "user": "testuser"},
+        {"name": "beans", "quantity": 2, "unit": "lbs", "user": "testuser"},
+        {"name": "onions", "quantity": 2, "unit": "lbs", "user": "testuser"},
+        {"name": "tomato", "quantity": 2, "unit": "lbs", "user": "testuser"},
+        {"name": "spinach", "quantity": 2, "unit": "lbs", "user": "testuser"},
+        {"name": "cheese", "quantity": 2, "unit": "lbs", "user": "testuser"},
+        {"name": "lettuce", "quantity": 2, "unit": "lbs", "user": "testuser"}
+
+    ]
     item_names = ", ".join([item["name"] for item in item_list])
-    user_preference = {"dietary_preference": "vegetarian",
-  "spice_level": "medium",
-  "food_allergy": ["peanuts", "shellfish"],
-  "daily_calorie_target": { "$numberDouble": "2000.0" }
-}
+
+    user_preference = {
+        "dietary_preference": "vegetarian",
+        "spice_level": "medium",
+        "food_allergy": ["peanuts", "shellfish"],
+        "daily_calorie_target": 2000
+    }
+    meal_preference = "breakfast"
+
+    # 🧠 Enhanced Prompt
+    prompt_text = f"""
+You are an empathetic AI Chef who designs recipes tailored to the user’s ingredients and preferences.
+
+### USER CONTEXT:
+Available ingredients: {item_names}.
+Meal type: {meal_preference}.
+User preferences: {user_preference}.
+
+### TASK:
+1. Suggest 2-3 recipes that can be prepared using the given ingredients.
+2. Each recipe should include:
+   - "recipe_name": A creative and catchy title.
+   - "prep_time": Estimated preparation time (in minutes).
+   - "cook_time": Estimated cooking time (in minutes).
+   - "ingredients": List of ingredients with quantities.
+   - "steps": Step-by-step cooking instructions.
+   - "feel_good_phrase": A short moody phrase that makes the user feel happy, cozy, or inspired to cook (e.g., "Perfect for a rainy morning" or "A cozy bowl that feels like home").
+   - "preference_match": Brief explanation of how this dish aligns with the user's preferences (diet, spice, allergy, calorie target).
+   - "youtube": A real or close-matching YouTube recipe suggestion — return a JSON object:
+        {{
+          "title": "Exact YouTube video title (short and descriptive)",
+          "url": "https://www.youtube.com/..."
+        }}
+3. Make sure the JSON output is clean, properly formatted, and human-readable.
+4. Keep total response under 600 words.
+"""
+
     response = kronosClient.chat.completions.create(
-    prompt="You are an AI recipe assistant. Based on the following ingredients: " + item_names +
-    ", and user preferences: " + str(user_preference) +
-    ", suggest a list of recipes that can be made. Provide detailed recipe instructions including ingredients, quantities, and steps.",
-    model="hermes",
-    temperature=0.7,
-    is_stream=False
-)
+        prompt=prompt_text,
+        model="hermes",
+        temperature=0.8,
+        is_stream=False
+    )
+
     return {
         "ingredients": item_list,
         "recipes": response.choices[0].message.content
     }
+
 
 @router.post("/ingredients/")
 def add_ingredient(ingredient: Ingredient):
