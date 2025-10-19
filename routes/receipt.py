@@ -37,7 +37,7 @@ async def process_receipt(file: UploadFile = File(...)):
         }
 
         payload = {
-            "model": "sonar-pro",
+            "model": os.getenv("PERPLEXITY_MODEL", "sonar-pro"),
             "response_format": {
                 "type": "json_schema",
                 "json_schema": {

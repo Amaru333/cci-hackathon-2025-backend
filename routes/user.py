@@ -1,19 +1,15 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from pymongo import MongoClient
 import os
 from typing import List
+from database import get_collection
 
 router = APIRouter()
 
-# MongoDB connection
-mongodb_uri = os.getenv("MONGODB_URI")
-if not mongodb_uri:
-    raise RuntimeError("MONGODB_URI not configured")
-
-client = MongoClient(mongodb_uri, tls=True, tlsAllowInvalidCertificates=True)
-db = client["cci_hackathon"]
-users_collection = db["users"]
+# Get users collection from centralized database connection (lazy loading)
+def get_users_collection():
+    """Get users collection from database."""
+    return get_collection("users")
 
 class User(BaseModel):
     user: str
@@ -33,6 +29,7 @@ class UserResponse(BaseModel):
 @router.post("/")
 def create_user(user_data: User):
     try:
+        users_collection = get_users_collection()
         # Check if user already exists
         existing_user = users_collection.find_one({"user": user_data.user})
         if existing_user:
@@ -55,6 +52,7 @@ def create_user(user_data: User):
 @router.get("/{user}")
 def get_user(user: str):
     try:
+        users_collection = get_users_collection()
         # Find user by username
         user_data = users_collection.find_one({"user": user})
         

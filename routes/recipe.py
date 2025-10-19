@@ -1,21 +1,25 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from pymongo import MongoClient
 import os
+import json
+from typing import List, Dict, Any
 from kronoslabs import KronosLabs
+from database import get_collection
 
 router = APIRouter()
 
-kronosClient = KronosLabs(api_key=os.getenv("KRONOSLABS_API_KEY"))
+# Get ingredients collection from centralized database connection (lazy loading)
+def get_ingredients_collection():
+    """Get ingredients collection from database."""
+    return get_collection("ingredients")
 
-# MongoDB connection
-mongodb_uri = os.getenv("MONGODB_URI")
-if not mongodb_uri:
-    raise RuntimeError("MONGODB_URI not configured")
-
-client = MongoClient(mongodb_uri, tls=True, tlsAllowInvalidCertificates=True)
-db = client["cci_hackathon"]
-ingredients_collection = db["ingredients"]
+# Initialize KronosLabs client only when needed
+def get_kronos_client():
+    """Get KronosLabs client instance."""
+    api_key = os.getenv("KRONOSLABS_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="KRONOSLABS_API_KEY not configured")
+    return KronosLabs(api_key=api_key)
 
 class Ingredient(BaseModel):
     name: str
@@ -30,8 +34,68 @@ class IngredientResponse(BaseModel):
     unit: str
     user: str
 
+class AllIngredient(BaseModel):
+    name: str
+    expiry: int
+    category: str
+
+class AllIngredientsResponse(BaseModel):
+    ingredients: List[AllIngredient]
+    total_count: int
+    categories: List[str]
+
+@router.get("/all-ingredients", response_model=AllIngredientsResponse)
+def get_all_ingredients():
+    """
+    Get all available ingredients from the master ingredients database.
+    
+    Returns:
+        AllIngredientsResponse: Complete list of all ingredients with metadata
+    """
+    try:
+        # Get all ingredients collection from database
+        all_ingredients_collection = get_collection("all_ingredients")
+        
+        # Fetch all ingredients from database
+        ingredients_data = list(all_ingredients_collection.find({}))
+        
+        if not ingredients_data:
+            raise HTTPException(
+                status_code=404, 
+                detail="No ingredients found in database"
+            )
+        
+        # Convert to AllIngredient objects
+        all_ingredients = [
+            AllIngredient(
+                name=item["name"],
+                expiry=item["expiry"],
+                category=item["category"]
+            )
+            for item in ingredients_data
+        ]
+        
+        # Get unique categories
+        categories = list(set(item["category"] for item in ingredients_data))
+        categories.sort()  # Sort alphabetically
+        
+        return AllIngredientsResponse(
+            ingredients=all_ingredients,
+            total_count=len(all_ingredients),
+            categories=categories
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error retrieving all ingredients from database: {str(e)}"
+        )
+
 @router.get("/{user}")
 def get_recipes(user: str):
+    ingredients_collection = get_ingredients_collection()
     item_list = list(ingredients_collection.find({"user": user}))
     for item in item_list:
         item["id"] = str(item["_id"])
@@ -74,10 +138,11 @@ User preferences: {user_preference}.
 4. Keep total response under 600 words.
 """
 
+    kronosClient = get_kronos_client()
     response = kronosClient.chat.completions.create(
         prompt=prompt_text,
-        model="hermes",
-        temperature=0.8,
+        model=os.getenv("KRONOSLABS_MODEL", "hermes"),
+        temperature=float(os.getenv("KRONOSLABS_TEMPERATURE", "0.8")),
         is_stream=False
     )
 
@@ -90,6 +155,7 @@ User preferences: {user_preference}.
 @router.post("/ingredients/")
 def add_ingredient(ingredient: Ingredient):
     try:
+        ingredients_collection = get_ingredients_collection()
         # Insert ingredient into MongoDB
         result = ingredients_collection.insert_one(ingredient.dict())
         
@@ -105,6 +171,7 @@ def add_ingredient(ingredient: Ingredient):
 @router.get("/ingredients/{user}")
 def get_ingredients_by_user(user: str):
     try:
+        ingredients_collection = get_ingredients_collection()
         # Find all ingredients for the given user
         ingredients = list(ingredients_collection.find({"user": user}))
         
