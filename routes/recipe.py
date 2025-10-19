@@ -3,6 +3,8 @@ from pydantic import BaseModel
 from pymongo import MongoClient
 import os
 from kronoslabs import KronosLabs
+from bson import ObjectId
+from fastapi import Path
 
 router = APIRouter()
 
@@ -56,22 +58,35 @@ Meal type: {meal_preference}.
 User preferences: {user_preference}.
 
 ### TASK:
-1. Suggest 2-3 recipes that can be prepared using the given ingredients.
-2. Each recipe should include:
-   - "recipe_name": A creative and catchy title.
-   - "prep_time": Estimated preparation time (in minutes).
-   - "cook_time": Estimated cooking time (in minutes).
-   - "ingredients": List of ingredients with quantities.
-   - "steps": Step-by-step cooking instructions.
-   - "feel_good_phrase": A short moody phrase that makes the user feel happy, cozy, or inspired to cook (e.g., "Perfect for a rainy morning" or "A cozy bowl that feels like home").
-   - "preference_match": Brief explanation of how this dish aligns with the user's preferences (diet, spice, allergy, calorie target).
-   - "youtube": A real or close-matching YouTube recipe suggestion — return a JSON object:
-        {{
-          "title": "Exact YouTube video title (short and descriptive)",
-          "url": "https://www.youtube.com/..."
-        }}
-3. Make sure the JSON output is clean, properly formatted, and human-readable.
-4. Keep total response under 600 words.
+Based on the given ingredients and preferences, suggest 2-3 creative, realistic, and delicious recipes.
+
+Each recipe should include the following fields in JSON format:
+
+- "recipe_name": A clear, creative, and appealing name for the dish.
+- "calories": Total calories in the dish.
+- "prep_time": Estimated preparation time in minutes.
+- "cook_time": Estimated cooking time in minutes.
+- "ingredients": List of ingredients with appropriate quantities.
+- "steps": Step-by-step cooking instructions (concise and easy to follow).
+- "feel_good_phrase": A short, moody phrase that emotionally connects to the user’s craving or setting 
+  (e.g., "Perfect for cozy nights", "Bright and zesty for a fresh start", or "A comforting bowl after a long day").
+- "preference_match": A one-line explanation of how the dish aligns with the user’s preferences 
+  (e.g., vegetarian, spice level, calorie target, or allergy-safe).
+- "youtube": {{
+    "title": "An exact YouTube recipe video title that closely matches this recipe name and really exists",
+    "url": "A real, working YouTube link to that recipe"
+  }}
+
+### REQUIREMENTS:
+1. Ensure that each YouTube link you provide is real, existing, and relevant to the recipe title. 
+   For example:
+   - For "Rice & Beans Breakfast Bowl" → https://www.youtube.com/watch?v=RycCxY18zno
+   - For "Garlic Butter Rice" → https://www.youtube.com/watch?v=8V8Z6EYYa2E
+   - For "Spicy Veggie Stir Fry" → https://www.youtube.com/watch?v=5eLR0x4Cbn4
+2. Recipes should feel natural and use the ingredients listed by the user where possible.
+3. Keep the tone empathetic, warm, and encouraging — make the user feel inspired to cook.
+4. Return only valid, structured JSON (no extra commentary or text outside the JSON).
+5. Keep the total response concise — under 600 words.
 """
 
     response = kronosClient.chat.completions.create(
@@ -137,3 +152,53 @@ def get_ingredients_by_user(user: str):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving ingredients: {str(e)}")
+    
+@router.put("/ingredients/{id}")
+def update_ingredient(
+    id: str = Path(..., description="MongoDB ObjectId of the ingredient"),
+    ingredient: Ingredient = None
+):
+    try:
+        # Validate ObjectId
+        if not ObjectId.is_valid(id):
+            raise HTTPException(status_code=400, detail="Invalid ingredient ID")
+
+        # Only update non-null fields
+        update_data = {k: v for k, v in ingredient.dict().items() if v is not None}
+
+        result = ingredients_collection.update_one(
+            {"_id": ObjectId(id)},
+            {"$set": update_data}
+        )
+
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Ingredient not found")
+
+        # Retrieve updated ingredient
+        updated = ingredients_collection.find_one({"_id": ObjectId(id)})
+        updated["id"] = str(updated["_id"])
+        del updated["_id"]
+
+        return {
+            "message": "Ingredient updated successfully",
+            "ingredient": updated
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating ingredient: {str(e)}")
+
+@router.delete("/ingredients/{id}")
+def delete_ingredient(id: str = Path(..., description="MongoDB ObjectId of the ingredient")):
+    try:
+        if not ObjectId.is_valid(id):
+            raise HTTPException(status_code=400, detail="Invalid ingredient ID")
+
+        result = ingredients_collection.delete_one({"_id": ObjectId(id)})
+
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Ingredient not found")
+
+        return {"message": f"Ingredient {id} deleted successfully"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting ingredient: {str(e)}")
