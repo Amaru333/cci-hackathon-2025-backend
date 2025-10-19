@@ -10,14 +10,18 @@ from utils.standardize import smart_standardize
 
 router = APIRouter()
 
+
 class Item(BaseModel):
     name: str
     price: float
     quantity: int
+    unit: str  # Added field for kgs, pieces, lbs, etc.
+
 
 class ReceiptResponse(BaseModel):
     items: List[Item]
     total: float
+
 
 @router.post("/", response_model=ReceiptResponse)
 async def process_receipt(file: UploadFile = File(...)):
@@ -36,6 +40,7 @@ async def process_receipt(file: UploadFile = File(...)):
             "Content-Type": "application/json",
         }
 
+        # Updated schema includes 'unit'
         payload = {
             "model": "sonar-pro",
             "response_format": {
@@ -51,9 +56,10 @@ async def process_receipt(file: UploadFile = File(...)):
                                     "properties": {
                                         "name": {"type": "string"},
                                         "price": {"type": "number"},
-                                        "quantity": {"type": "integer"},
+                                        "quantity": {"type": "number"},
+                                        "unit": {"type": "string"}
                                     },
-                                    "required": ["name", "price", "quantity"]
+                                    "required": ["name", "price", "quantity", "unit"]
                                 }
                             },
                             "total": {"type": "number"}
@@ -66,9 +72,16 @@ async def process_receipt(file: UploadFile = File(...)):
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": "Extract all items and total from this receipt image."},
-                        {"type": "image_url", "image_url": {"url": data_uri}}
-                    ]
+                        {
+                            "type": "text",
+                            "text": (
+                                "Extract all items, their quantities, units (like kg, lbs, pieces, or count), "
+                                "and total from this receipt image. "
+                                "Return a JSON exactly matching the provided schema."
+                            ),
+                        },
+                        {"type": "image_url", "image_url": {"url": data_uri}},
+                    ],
                 }
             ],
         }
@@ -83,11 +96,10 @@ async def process_receipt(file: UploadFile = File(...)):
         data = response.json()
         content = data["choices"][0]["message"]["content"]
 
+        # Parse AI response
         try:
-            # Try direct parsing
             result = json.loads(content)
         except json.JSONDecodeError:
-            # Attempt cleanup fallback (replace single quotes)
             try:
                 result = json.loads(content.replace("'", '"'))
             except Exception:
@@ -96,6 +108,7 @@ async def process_receipt(file: UploadFile = File(...)):
         if "error" in result:
             raise HTTPException(status_code=400, detail=result["error"])
 
+        # Use your custom normalization function
         result["items"] = smart_standardize(result["items"])
 
         return ReceiptResponse(**result)
@@ -104,4 +117,3 @@ async def process_receipt(file: UploadFile = File(...)):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-

@@ -101,6 +101,23 @@ def add_ingredient(ingredient: Ingredient):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error adding ingredient: {str(e)}")
+    
+# Same as above but post array of ingredients
+@router.post("/ingredients/batch/")
+def add_ingredients_batch(ingredients: list[Ingredient]):
+    try:
+        # Insert multiple ingredients into MongoDB
+        ingredient_dicts = [ingredient.dict() for ingredient in ingredients]
+        result = ingredients_collection.insert_many(ingredient_dicts)
+        
+        # Return the created ingredients with IDs
+        return {
+            "ids": [str(id) for id in result.inserted_ids],
+            "message": "Ingredients added successfully",
+            "count": len(result.inserted_ids)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error adding ingredients: {str(e)}")
 
 @router.get("/ingredients/{user}")
 def get_ingredients_by_user(user: str):
